@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Работа</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:var(--tg-theme-bg-color,#fff);--tx:var(--tg-theme-text-color,#111);--hint:var(--tg-theme-hint-color,#888);--bt:var(--tg-theme-button-color,#2481cc);--bx:var(--tg-theme-button-text-color,#fff);--sec:var(--tg-theme-secondary-bg-color,#f1f1f1)}
+body{margin:0;padding:12px 12px 90px;background:var(--bg);color:var(--tx);font:16px/1.35 -apple-system,Arial,sans-serif}
+input{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--hint);border-radius:10px;background:var(--sec);color:var(--tx);font-size:16px;margin:4px 0 10px}
+.row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--sec)}
+.n{flex:1}small{color:var(--hint)}
+button.q{width:38px;height:38px;border-radius:50%;border:0;background:var(--bt);color:var(--bx);font-size:20px}
+.qty{min-width:22px;text-align:center}
+.box{background:var(--sec);border-radius:12px;padding:10px;margin:10px 0}
+#go{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:14px;border:0;border-radius:12px;background:var(--bt);color:var(--bx);font-size:17px}
+#go:disabled{opacity:.4}
+</style></head><body>
+<label>Что сделал</label>
+<input id="d" placeholder="например: замена тормозных колодок" maxlength="150">
+<label>Запчасти</label>
+<input id="s" placeholder="поиск: колод, камера, фара…">
+<div id="list"></div>
+<div class="box" id="sum"></div>
+<label>Сколько взял с клиента всего, ₽</label>
+<input id="p" type="number" inputmode="numeric" placeholder="0">
+<div class="box" id="calc"></div>
+<button id="go" disabled>Отправить боту</button>
+<script>
+const CAT=[[42, "Амортизаторы задние пружинно-масляные U2 340 мм (пара/чёрный)", 3780], [35, "Держатель для телефона", 640], [31, "Задний дисковый тормоз в сборе", 5780], [29, "Задний тормозной диск 220 мм", 2310], [21, "Задняя часть передней облицовочной панели (WHITE)", 500], [34, "Замок с ключами", 1140], [7, "Зарядное устройство 60 В, 8 А", 4130], [4, "Зеркала заднего вида", 990], [2, "К-кт подшипников вилки", 500], [6, "Камера колеса", 660], [27, "Колесо 2,15–12 с алюминиевым ободом", 4930], [3, "Колодки тормозные", 640], [26, "Контроллер 40A для 60V/48V", 4930], [37, "Крыло заднее на U2", 2130], [22, "Левая боковая панель (WHITE)", 970], [24, "Левая декоративная накладка защитной панели (SILVER)", 330], [14, "Левая подножка (пластик)", 330], [33, "Левая ручка", 1470], [5, "Ниппель для колеса", 120], [9, "Ось переднего колеса со втулками", 740], [19, "Переднее крыло (WHITE)", 1630], [10, "Передние амортизаторы", 4930], [46, "Передний амортизатор (гарантия, счёт №3)", 0], [30, "Передний дисковый тормоз в сборе", 5450], [20, "Передняя облицовочная панель (WHITE)", 1630], [18, "Передняя фара", 3280], [45, "Передняя фара (гарантия, счёт №3)", 0], [38, "Пластиковый отсек под АКБ («унитаз») на U2", 2130], [17, "Платформа для ног", 970], [40, "Поворотники задние на U2", 1470], [39, "Поворотники передние на U2", 1470], [1, "Подшипник переднего колеса (6201)", 170], [12, "Покрышка 90/90/12", 2970], [23, "Правая боковая панель (WHITE)", 970], [25, "Правая декоративная накладка защитной панели (SILVER)", 330], [15, "Правая подножка (пластик)", 330], [32, "Правая ручка газа", 1630], [41, "Провод АКБ (6к / усиленный)", 1470], [13, "Провод на мотор-колесо", 990], [36, "Рулевая колонка", 3280], [8, "Ручка для АКБ", 480], [43, "Ручка тормоза обычная на U2 (левая)", 400], [44, "Ручка тормоза обычная на U2 (правая)", 400], [28, "Тормозной диск 220мм", 2310], [11, "Траверса", 3280], [16, "Центральная облицовочная панель (WHITE)", 480]];
+const M=Object.fromEntries(CAT.map(c=>[c[0],c]));
+const tg=window.Telegram.WebApp;tg.ready();tg.expand();
+const cart={};
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString('ru-RU')+' ₽';
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function render(){
+  const w=$('s').value.trim().toLowerCase();
+  const items=CAT.filter(c=>!w||c[1].toLowerCase().includes(w)).slice(0,30);
+  $('list').innerHTML=items.map(c=>'<div class="row"><div class="n">'+esc(c[1])+'<br><small>'+fmt(c[2])+'</small></div>'
+    +'<button class="q" data-id="'+c[0]+'" data-d="-1">−</button><span class="qty">'+(cart[c[0]]||0)
+    +'</span><button class="q" data-id="'+c[0]+'" data-d="1">+</button></div>').join('')||'<small>Ничего не найдено</small>';
+  update();
+}
+function update(){
+  const ids=Object.keys(cart).filter(i=>cart[i]>0);
+  const pt=ids.reduce((s,i)=>s+cart[i]*M[i][2],0);
+  $('sum').innerHTML=ids.length?ids.map(i=>esc(M[i][1])+' ×'+cart[i]).join('<br>')+'<br><b>Запчасти: '+fmt(pt)+'</b>':'Запчасти не выбраны';
+  const p=+$('p').value||0;
+  $('calc').innerHTML=p?(p>=pt?'Работа: <b>'+fmt(p-pt)+'</b>':'<span style="color:#d33">Сумма меньше запчастей ('+fmt(pt)+')</span>'):'Введи сумму с клиента';
+  $('go').disabled=!($('d').value.trim()&&p>0&&p>=pt);
+}
+$('list').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const id=b.dataset.id;cart[id]=Math.max(0,Math.min(50,(cart[id]||0)+(+b.dataset.d)));
+  b.parentNode.querySelector('.qty').textContent=cart[id];update();
+};
+$('s').oninput=render;$('d').oninput=update;$('p').oninput=update;
+$('go').onclick=()=>tg.sendData(JSON.stringify({d:$('d').value.trim(),
+  p:Object.keys(cart).filter(i=>cart[i]>0).map(i=>[+i,cart[i]]),t:+$('p').value}));
+render();
+</script></body></html>
